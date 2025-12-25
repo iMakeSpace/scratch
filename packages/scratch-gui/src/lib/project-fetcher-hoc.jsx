@@ -7,13 +7,16 @@ import {connect} from 'react-redux';
 
 import {setProjectUnchanged} from '../reducers/project-changed';
 import {
+    LoadingState,
     LoadingStates,
     getIsCreatingNew,
     getIsFetchingWithId,
     getIsLoading,
     getIsShowingProject,
     onFetchedProjectData,
+    onLoadedProject,
     projectError,
+    requestProjectUpload,
     setProjectId
 } from '../reducers/project-state';
 import {
@@ -23,6 +26,7 @@ import {
 
 import log from './log';
 import {GUIStoragePropType} from '../gui-config';
+import {closeLoadingProject, openLoadingProject} from '../reducers/modals';
 
 /* Higher Order Component to provide behavior for loading projects by id. If
  * there's no id, the default project is loaded.
@@ -34,7 +38,8 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         constructor (props) {
             super(props);
             bindAll(this, [
-                'fetchProject'
+                'fetchProject',
+                'loadExternalProject'
             ]);
 
             const storage = this.props.storage;
@@ -49,11 +54,17 @@ const ProjectFetcherHOC = function (WrappedComponent) {
             // Either way, we now know what the initial projectId should be, so
             // set it in the redux store.
             if (
+                !props.externalProjectUrl &&
                 props.projectId !== '' &&
                 props.projectId !== null &&
                 typeof props.projectId !== 'undefined'
             ) {
                 this.props.setProjectId(props.projectId.toString());
+            }
+        }
+        componentDidMount () {
+            if (this.props.externalProjectUrl) {
+                this.loadExternalProject(this.props.externalProjectUrl);
             }
         }
         componentDidUpdate (prevProps) {
@@ -77,6 +88,9 @@ const ProjectFetcherHOC = function (WrappedComponent) {
             if (this.props.isShowingProject && (prevProps.isLoadingProject || prevProps.isCreatingNew)) {
                 this.props.onActivateTab(BLOCKS_TAB_INDEX);
             }
+            if (this.props.externalProjectUrl && this.props.externalProjectUrl !== prevProps.externalProjectUrl) {
+                this.loadExternalProject(this.props.externalProjectUrl);
+            }
         }
         fetchProject (projectId, loadingState) {
             const storage = this.props.storage.scratchStorage;
@@ -97,10 +111,30 @@ const ProjectFetcherHOC = function (WrappedComponent) {
                     log.error(err);
                 });
         }
+        loadExternalProject (projectUrl) {
+            this.props.onExternalLoadingStarted();
+            return fetch(projectUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch project from ${projectUrl}: ${response.status}`);
+                    }
+                    return response.arrayBuffer();
+                })
+                .then(buffer => this.props.vm.loadProject(buffer))
+                .then(() => this.props.onExternalLoadingFinished(true))
+                .catch(error => {
+                    this.props.onExternalLoadingFinished(false);
+                    this.props.onError(error);
+                    // 提示用户加载失败的原因，避免界面“无反应”的体验。
+                    alert(`加载项目失败：${error.message || error}`); // eslint-disable-line no-alert
+                    log.error(error);
+                });
+        }
         render () {
             const {
-                 
+                
                 assetHost,
+                externalProjectUrl,
                 intl,
                 isLoadingProject: isLoadingProjectProp,
                 loadingState,
@@ -129,6 +163,7 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         storage: GUIStoragePropType,
         assetHost: PropTypes.string,
         canSave: PropTypes.bool,
+        externalProjectUrl: PropTypes.string,
         intl: intlShape.isRequired,
         isCreatingNew: PropTypes.bool,
         isFetchingWithId: PropTypes.bool,
@@ -138,12 +173,15 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         onActivateTab: PropTypes.func,
         onError: PropTypes.func,
         onFetchedProjectData: PropTypes.func,
+        onExternalLoadingFinished: PropTypes.func,
+        onExternalLoadingStarted: PropTypes.func,
         onProjectUnchanged: PropTypes.func,
         projectHost: PropTypes.string,
         projectToken: PropTypes.string,
         projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
         reduxProjectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-        setProjectId: PropTypes.func
+        setProjectId: PropTypes.func,
+        vm: PropTypes.object
     };
     ProjectFetcherComponent.defaultProps = {
         assetHost: 'https://assets.scratch.mit.edu',
@@ -157,7 +195,8 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         isLoadingProject: getIsLoading(state.scratchGui.projectState.loadingState),
         isShowingProject: getIsShowingProject(state.scratchGui.projectState.loadingState),
         loadingState: state.scratchGui.projectState.loadingState,
-        reduxProjectId: state.scratchGui.projectState.projectId
+        reduxProjectId: state.scratchGui.projectState.projectId,
+        vm: state.scratchGui.vm
     });
     const mapDispatchToProps = dispatch => ({
         onActivateTab: tab => dispatch(activateTab(tab)),
@@ -165,7 +204,15 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         onFetchedProjectData: (projectData, loadingState) =>
             dispatch(onFetchedProjectData(projectData, loadingState)),
         setProjectId: projectId => dispatch(setProjectId(projectId)),
-        onProjectUnchanged: () => dispatch(setProjectUnchanged())
+        onProjectUnchanged: () => dispatch(setProjectUnchanged()),
+        onExternalLoadingStarted: () => {
+            dispatch(openLoadingProject());
+            dispatch(requestProjectUpload(LoadingState.NOT_LOADED));
+        },
+        onExternalLoadingFinished: success => {
+            dispatch(onLoadedProject(LoadingState.LOADING_VM_FILE_UPLOAD, false, success));
+            dispatch(closeLoadingProject());
+        }
     });
     // Allow incoming props to override redux-provided props. Used to mock in tests.
     const mergeProps = (stateProps, dispatchProps, ownProps) => Object.assign(
