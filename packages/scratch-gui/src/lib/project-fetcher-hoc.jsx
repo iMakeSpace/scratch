@@ -171,6 +171,8 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         onActivateTab: PropTypes.func,
         onError: PropTypes.func,
         onFetchedProjectData: PropTypes.func,
+        onExternalLoadingFinished: PropTypes.func,
+        onExternalLoadingStarted: PropTypes.func,
         onProjectUnchanged: PropTypes.func,
         projectHost: PropTypes.string,
         projectToken: PropTypes.string,
