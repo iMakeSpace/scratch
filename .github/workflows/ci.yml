@@ -131,6 +131,12 @@ jobs:
           # scratch-gui doesn't follow the pattern above
           ln -s "../packages/scratch-gui/build" "../pages/scratch-gui"
 
+          # Create root-level symlinks to scratch-gui entry points
+          # Remove existing files if they exist to avoid conflicts on reruns
+          rm -f ../pages/index.html ../pages/player.html
+          ln -s "scratch-gui/index.html" "../pages/index.html"
+          ln -s "scratch-gui/player.html" "../pages/player.html"
+
           ls -l ../pages/
       - name: Deploy playgrounds to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4
