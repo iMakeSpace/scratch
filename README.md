@@ -39,6 +39,19 @@ The existing repositories will be archived and made read-only. Those repositorie
 information, including but not limited to issues and pull requests. We plan to keep that information available for
 reference, and to selectively migrate it to this new repository.
 
+## 功能：通过 `projectUrl` 参数打开指定 sb3 文件
+
+在访问编辑器页面的链接中加入查询参数 `?projectUrl=xxx`，即可在打开编辑器时自动加载指定的 `.sb3` 项目文件。
+
+- 参数名：`projectUrl`
+- 参数值：一个可访问的 `.sb3` 文件 URL（需要允许跨域访问/可被浏览器直接下载）
+
+示例：
+
+- `https://scratch.mit.edu/projects/editor/?projectUrl=https://example.com/demo.sb3`
+
+> 注意：`projectUrl` 中的 URL 建议进行 URL 编码（encodeURIComponent），以避免包含 `&`、`?` 等字符时解析出错。
+
 ## Thank you!
 
 Scratch would not be what it is today without help from the global community of Scratchers and open-source
