@@ -1,6 +1,7 @@
 import bindAll from 'lodash.bindall';
 import React from 'react';
 import PropTypes from 'prop-types';
+import queryString from 'query-string';
 import {connect} from 'react-redux';
 
 import {
@@ -37,6 +38,10 @@ const HashParserHOC = function (WrappedComponent) {
             window.removeEventListener('hashchange', this.handleHashChange);
         }
         handleHashChange () {
+            const queryParams = queryString.parse(location.search);
+            if (queryParams.projectUrl) {
+                return;
+            }
             const hashMatch = window.location.hash.match(/#(\d+)/);
             const hashProjectId = hashMatch === null ? defaultProjectId : hashMatch[1];
             this.props.setProjectId(hashProjectId.toString());
