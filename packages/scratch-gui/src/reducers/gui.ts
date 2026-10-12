@@ -6,6 +6,7 @@ import colorPickerReducer, {colorPickerInitialState} from './color-picker';
 import connectionModalReducer, {connectionModalInitialState} from './connection-modal';
 import customProceduresReducer, {customProceduresInitialState} from './custom-procedures';
 import blockDragReducer, {blockDragInitialState} from './block-drag';
+import dynamicAssetsReducer, {dynamicAssetsInitialState} from './dynamic-assets';
 import editorTabReducer, {editorTabInitialState} from './editor-tab';
 import hoveredTargetReducer, {hoveredTargetInitialState} from './hovered-target';
 import menuReducer, {menuInitialState} from './menus';
@@ -34,7 +35,16 @@ import throttle from 'redux-throttle';
 import decks from '../lib/libraries/decks/index.jsx';
 import {GUIConfig} from '../gui-config';
 
-const guiMiddleware = compose(applyMiddleware(throttle(300, {leading: true, trailing: true})));
+const buildGuiMiddleware = () => compose(applyMiddleware(throttle(300, {leading: true, trailing: true})));
+
+/**
+ * @deprecated This is a single shared middleware instance, so every store that uses it
+ * applies the same `redux-throttle` middleware object, which keeps its pending-action
+ * timers in its own internal state. Multiple stores sharing that state can suppress or
+ * drop each other's throttled actions. Call {@link buildGuiMiddleware} instead to get a
+ * fresh middleware instance per store.
+ */
+const guiMiddleware = buildGuiMiddleware();
 
 const buildInitialState = (config: GUIConfig) => ({
     alerts: alertsInitialState,
@@ -45,6 +55,7 @@ const buildInitialState = (config: GUIConfig) => ({
     config,
     connectionModal: connectionModalInitialState,
     customProcedures: customProceduresInitialState,
+    dynamicAssets: dynamicAssetsInitialState,
     editorTab: editorTabInitialState,
     mode: modeInitialState,
     hoveredTarget: hoveredTargetInitialState,
@@ -153,6 +164,7 @@ const guiReducer = combineReducers({
     colorPicker: colorPickerReducer,
     connectionModal: connectionModalReducer,
     config: configReducer,
+    dynamicAssets: dynamicAssetsReducer,
     customProcedures: customProceduresReducer,
     editorTab: editorTabReducer,
     mode: modeReducer,
@@ -181,6 +193,7 @@ const guiReducer = combineReducers({
 
 export {
     guiReducer as default,
+    buildGuiMiddleware,
     buildInitialState,
     guiMiddleware,
     initEmbedded,

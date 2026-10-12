@@ -1,10 +1,16 @@
 import PropTypes from 'prop-types';
 import React from 'react';
 import classNames from 'classnames';
-import {FormattedMessage} from 'react-intl';
+import {FormattedMessage, defineMessage, useIntl} from 'react-intl';
 import UserAvatar from './user-avatar.jsx';
 
 import styles from './author-info.css';
+
+const authorInfo = defineMessage({
+    id: 'gui.aria.authorInfo',
+    defaultMessage: 'Project "{projectTitle}" by {username}',
+    description: 'accessibility label for author info'
+});
 
 const AuthorInfo = ({
     className,
@@ -14,8 +20,10 @@ const AuthorInfo = ({
     userId,
     username,
     avatarBadge
-}) => (
-    <div
+}) => {
+    const intl = useIntl();
+
+    return (<div
         className={classNames(
             className,
             styles.authorInfo
@@ -25,8 +33,15 @@ const AuthorInfo = ({
             className={styles.avatar}
             imageUrl={imageUrl}
             showAvatarBadge={!!avatarBadge}
+            wrapperClassName={styles.avatarWrapper}
         />
-        <div className={styles.titleAuthor}>
+        <div
+            className={styles.titleAuthor}
+            aria-label={intl.formatMessage(authorInfo, {
+                projectTitle,
+                username
+            })}
+        >
             <span className={styles.projectTitle}>
                 {projectTitle}
             </span>
@@ -48,8 +63,8 @@ const AuthorInfo = ({
                 </span>
             </div>
         </div>
-    </div>
-);
+    </div>);
+};
 
 AuthorInfo.propTypes = {
     className: PropTypes.string,
