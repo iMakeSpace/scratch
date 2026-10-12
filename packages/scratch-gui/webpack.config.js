@@ -50,7 +50,21 @@ const baseConfig = new ScratchWebpackConfigBuilder(
             fallback: {
                 Buffer: require.resolve('buffer/'),
                 stream: require.resolve('stream-browserify')
-            }
+            },
+            symlinks: false
+        }
+    })
+    .addModuleRule({
+        test: /\.[cm]?jsx?$/,
+        include: [
+            /node_modules[\\/]@scratch[\\/]scratch-paint[\\/]src[\\/]/
+        ],
+        loader: 'babel-loader',
+        options: {
+            presets: [
+                '@babel/preset-env',
+                '@babel/preset-react'
+            ]
         }
     })
     .addModuleRule({
@@ -87,12 +101,12 @@ const baseConfig = new ScratchWebpackConfigBuilder(
                 noErrorOnMissing: true
             },
             {
-                context: '../../node_modules/scratch-storage/dist/web',
+                context: '../../node_modules/@scratch/scratch-storage/dist/web',
                 from: 'chunks/fetch-worker.*.{js,js.map}',
                 noErrorOnMissing: true
             },
             {
-                context: '../../node_modules/scratch-storage/dist/web',
+                context: '../../node_modules/@scratch/scratch-storage/dist/web',
                 from: 'chunks/vendors-*.{js,js.map}',
                 noErrorOnMissing: true
             },

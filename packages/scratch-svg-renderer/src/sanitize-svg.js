@@ -3,50 +3,37 @@
  * as possible
  */
 const fixupSvgString = require('./fixup-svg-string');
-const {generate, parse, walk} = require('css-tree');
 const DOMPurify = require('isomorphic-dompurify');
+const {cssHasExternalUrls, filterCssText, isInternalRef} = require('./util/svg-url-helpers');
 
 const sanitizeSvg = {};
 
-const isInternalRef = ref => ref.startsWith('#') || ref.startsWith('data:');
+// Attributes that directly reference a URI (not via CSS url())
+const URI_ATTRIBUTES = new Set(['href', 'xlink:href']);
 
 DOMPurify.addHook(
     'beforeSanitizeAttributes',
     currentNode => {
+        if (!currentNode || !currentNode.attributes) return currentNode;
 
-        if (currentNode && currentNode.href && currentNode.href.baseVal) {
-            const href = currentNode.href.baseVal.replace(/\s/g, '');
-            // "data:" and "#" are valid hrefs
-            if (!isInternalRef(href)) {
-                // TODO: Those can be in different namespaces than `xlink:`
-                if (currentNode.attributes.getNamedItem('xlink:href')) {
-                    currentNode.attributes.removeNamedItem('xlink:href');
-                    delete currentNode['xlink:href'];
+        for (let i = currentNode.attributes.length - 1; i >= 0; i--) {
+            const attr = currentNode.attributes[i];
+            if (!attr.value) continue;
+
+            if (URI_ATTRIBUTES.has(attr.name)) {
+                // Direct URI: strip whitespace and check
+                if (!isInternalRef(attr.value.replace(/\s/g, ''))) {
+                    currentNode.removeAttribute(attr.name);
                 }
-                if (currentNode.attributes.getNamedItem('href')) {
-                    currentNode.attributes.removeNamedItem('href');
-                    delete currentNode.href;
+            } else {
+                // CSS value that might contain url()
+                const context = attr.name === 'style' ? 'declarationList' : 'value';
+                if (cssHasExternalUrls(attr.value, context)) {
+                    currentNode.removeAttribute(attr.name);
                 }
             }
         }
 
-        // Remove url(...) usages with external references
-        if (currentNode && currentNode.attributes) {
-            for (let i = currentNode.attributes.length - 1; i >= 0; i--) {
-                const attr = currentNode.attributes[i];
-                const rawValue = attr.value || '';
-                const value = rawValue.toLowerCase().replace(/\s/g, '');
-        
-                const urlMatch = value.match(/url\((.+?)\)/);
-                if (urlMatch) {
-                    const ref = urlMatch[1].replace(/['"]/g, '');
-                    if (!isInternalRef(ref)) {
-                        currentNode.removeAttribute(attr.name);
-                    }
-                }
-            }
-        }
-    
         return currentNode;
     }
 );
@@ -55,38 +42,15 @@ DOMPurify.addHook(
     'uponSanitizeElement',
     (node, data) => {
         if (data.tagName === 'style') {
-            const ast = parse(node.textContent);
-            let isModified = false;
-
-            walk(ast, (astNode, item, list) => {
-                // @import rules
-                if (astNode.type === 'Atrule' && astNode.name.toLowerCase() === 'import') {
-                    list.remove(item);
-                    isModified = true;
+            try {
+                const cleaned = filterCssText(node.textContent, null, {removeImports: true});
+                if (cleaned !== node.textContent) {
+                    node.textContent = cleaned;
                 }
-                
-                // Elements using url(...) for external resources
-                if (astNode.type === 'Declaration' && astNode.value) {
-                    let shouldRemove = false;
-                    walk(astNode.value, valueNode => {
-                        if (valueNode.type === 'Url') {
-                            const urlValue = (valueNode.value.value || '').trim().replace(/['"]/g, '');
-    
-                            if (!isInternalRef(urlValue)) {
-                                shouldRemove = true;
-                            }
-                        }
-                    });
-
-                    if (shouldRemove) {
-                        list.remove(item);
-                        isModified = true;
-                    }
-                }
-            });
-
-            if (isModified) {
-                node.textContent = generate(ast);
+            } catch {
+                // If CSS parsing fails, remove the style content entirely
+                // rather than risk passing through unsanitized CSS.
+                node.textContent = '';
             }
         }
     }
@@ -98,7 +62,7 @@ let _TextDecoder;
 let _TextEncoder;
 if (typeof TextDecoder === 'undefined' || typeof TextEncoder === 'undefined') {
     // Wait to require the text encoding polyfill until we know it's needed.
-     
+
     const encoding = require('fastestsmallesttextencoderdecoder');
     _TextDecoder = encoding.TextDecoder;
     _TextEncoder = encoding.TextEncoder;

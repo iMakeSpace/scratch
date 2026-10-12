@@ -29,7 +29,8 @@ button::-moz-focus-inner {
     border: 0;
 }
 
-.button:hover {
+.button:hover,
+.button:focus {
     background: $extensions-primary;
 }
 
@@ -93,6 +94,15 @@ button::-moz-focus-inner {
     display: flex;
     flex-direction: column;
     z-index: 10; /* @todo justify */
+    
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+    line-height: normal;
+}
+
+.more-buttons li {
+    margin: 0;
 }
 
 .file-input {

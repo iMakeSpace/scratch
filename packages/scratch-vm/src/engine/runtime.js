@@ -32,6 +32,10 @@ const Video = require('../io/video');
 const StringUtil = require('../util/string-util');
 const uid = require('../util/uid');
 
+/**
+ * @import {ScratchStorage} from '@scratch/scratch-storage'
+ */
+
 const defaultBlockPackages = {
     scratch3_control: require('../blocks/scratch3_control'),
     scratch3_event: require('../blocks/scratch3_event'),
@@ -100,7 +104,7 @@ const ArgumentTypeMap = (() => {
     };
     map[ArgumentType.IMAGE] = {
         // Inline images are weird because they're not actually "arguments".
-        // They are more analagous to the label on a block.
+        // They are more analogous to the label on a block.
         fieldType: 'field_image'
     };
     return map;
@@ -319,7 +323,7 @@ class Runtime extends EventEmitter {
          */
         this.currentStepTime = null;
 
-        // Set an intial value for this.currentMSecs
+        // Set an initial value for this.currentMSecs
         this.updateCurrentMSecs();
 
         /**
@@ -362,7 +366,7 @@ class Runtime extends EventEmitter {
         const newCloudDataManager = cloudDataManager();
 
         /**
-         * Check wether the runtime has any cloud data.
+         * Check whether the runtime has any cloud data.
          * @type {function}
          * @returns {boolean} Whether or not the runtime currently has any
          * cloud variables.
@@ -985,9 +989,7 @@ class Runtime extends EventEmitter {
                 type: menuId,
                 inputsInline: true,
                 output: 'String',
-                colour: categoryInfo.color1,
-                colourSecondary: categoryInfo.color2,
-                colourTertiary: categoryInfo.color3,
+                style: categoryInfo.id,
                 outputShape: menuInfo.acceptReporters ?
                     ScratchBlocksConstants.OUTPUT_SHAPE_ROUND : ScratchBlocksConstants.OUTPUT_SHAPE_SQUARE,
                 args0: [
@@ -1038,9 +1040,7 @@ class Runtime extends EventEmitter {
                 message0: '%1',
                 inputsInline: true,
                 output: output,
-                colour: categoryInfo.color1,
-                colourSecondary: categoryInfo.color2,
-                colourTertiary: categoryInfo.color3,
+                style: categoryInfo.id,
                 outputShape: outputShape,
                 args0: [
                     {
@@ -1085,9 +1085,8 @@ class Runtime extends EventEmitter {
             type: extendedOpcode,
             inputsInline: true,
             category: categoryInfo.name,
-            colour: categoryInfo.color1,
-            colourSecondary: categoryInfo.color2,
-            colourTertiary: categoryInfo.color3
+            style: categoryInfo.id,
+            extensions: []
         };
         const context = {
             // TODO: store this somewhere so that we can map args appropriately after translation.
@@ -1107,7 +1106,7 @@ class Runtime extends EventEmitter {
         const iconURI = blockInfo.blockIconURI || categoryInfo.blockIconURI;
 
         if (iconURI) {
-            blockJSON.extensions = ['scratch_extension'];
+            blockJSON.extensions.push('scratch_extension');
             blockJSON.message0 = '%1 %2';
             const iconJSON = {
                 type: 'field_image',
@@ -1148,6 +1147,7 @@ class Runtime extends EventEmitter {
             }
             blockJSON.outputShape = ScratchBlocksConstants.OUTPUT_SHAPE_SQUARE;
             blockJSON.nextStatement = null; // null = available connection; undefined = terminal
+            blockJSON.extensions.push('shape_hat');
             break;
         case BlockType.CONDITIONAL:
         case BlockType.LOOP:
@@ -1194,7 +1194,7 @@ class Runtime extends EventEmitter {
 
         if (blockInfo.blockType === BlockType.REPORTER) {
             if (!blockInfo.disableMonitor && context.inputList.length === 0) {
-                blockJSON.checkboxInFlyout = true;
+                blockJSON.extensions.push('monitor_block');
             }
         } else if (blockInfo.blockType === BlockType.LOOP) {
             // Add icon to the bottom right of a loop block
@@ -1260,7 +1260,7 @@ class Runtime extends EventEmitter {
     }
 
     /**
-     * Helper for _convertPlaceholdes which handles inline images which are a specialized case of block "arguments".
+     * Helper for _convertPlaceholders which handles inline images which are a specialized case of block "arguments".
      * @param {object} argInfo Metadata about the inline image as specified by the extension
      * @returns {object} JSON blob for a scratch-blocks image field.
      * @private
@@ -1433,8 +1433,8 @@ class Runtime extends EventEmitter {
 
             return {
                 id: categoryInfo.id,
-                xml: `<category name="${name}" id="${categoryInfo.id}" ${statusButtonXML} ${colorXML} ${menuIconXML}>${
-                    paletteBlocks.map(block => block.xml).join('')}</category>`
+                xml: `<category name="${name}" toolboxitemid="${categoryInfo.id}" ${statusButtonXML} ${colorXML} ${
+                    menuIconXML}>${paletteBlocks.map(block => block.xml).join('')}</category>`
             };
         });
     }
@@ -1640,6 +1640,41 @@ class Runtime extends EventEmitter {
         this.storage = storage;
         fetchWithTimeout.setFetch(storage.scratchFetch.scratchFetch);
         this.resetRunId();
+
+        // How many seconds should an action "cost" after we've exhausted the burst allowance?
+        // Setting this too high makes the extension frustrating to use, but setting it too low costs us real money.
+        // We should tune this over time based on user feedback and our budget.
+        const secondsPerAction = 4;
+
+        const productionDomains = ['scratch.mit.edu', 'scratch.org'];
+        const isProductionHost = typeof window !== 'undefined' &&
+            productionDomains.some(d =>
+                window.location.hostname === d || window.location.hostname.endsWith(`.${d}`)
+            );
+
+        /** @type {Parameters<typeof storage.scratchFetch.createQueue>[1]} */
+        // To override on staging, set `window._scratchExtensionServiceQueueOptions` in the browser console
+        // before the VM initializes (e.g. in a DevTools snippet that runs before page load), then reload.
+        // Example: window._scratchExtensionServiceQueueOptions = { burstLimit: 10, sustainRate: 1 }
+        // This override is ignored on production hosts.
+        // Note to folks who run into this in the wild: this is very temporary! Please don't rely on this in, say,
+        // an extension that implements add-ons for Scratch. Just for example. Anyway... we're trying to tune these
+        // numbers to find a good balance between user experience and our monetary costs. My first attempt was
+        // definitely too low; sorry! Once we're done tuning, we'll probably remove this override.
+        const extensionServiceQueueOptions = {
+            burstLimit: 3, // How many actions can be sent in a short time if we haven't done any for a while?
+            concurrency: 1, // Number of concurrent connections to the service
+            queueCostLimit: 10, // Don't queue more actions than can finish before the `fetchWithTimeout` timeout.
+            sustainRate: 1 / secondsPerAction, // See `secondsPerAction` above.
+            ...(!isProductionHost && typeof window !== 'undefined' && window._scratchExtensionServiceQueueOptions)
+        };
+
+        /** @todo The extensions should probably specify their own queue options (within existing limits) */
+        ['scratch.mit.edu', 'scratch.org'].forEach(scratchDomain => {
+            ['synthesis-service', 'translate-service'].forEach(service => {
+                storage.scratchFetch.createQueue(`${service}.${scratchDomain}`, extensionServiceQueueOptions);
+            });
+        });
     }
 
     // -----------------------------------------------------------------------------
@@ -1946,7 +1981,7 @@ class Runtime extends EventEmitter {
     /**
      * Move a target in the execution order by a relative amount.
      *
-     * A positve number will make the target execute earlier. A negative number
+     * A positive number will make the target execute earlier. A negative number
      * will make the target execute later in the order.
      * @param {Target} executableTarget target to move
      * @param {number} delta number of positions to move target by
@@ -2547,6 +2582,79 @@ class Runtime extends EventEmitter {
             varNames = varNames.concat(targetVarNames);
         }
         return varNames;
+    }
+
+    /**
+     * Restore, as globals on the stage, variables and lists whose definitions are
+     * missing from the project but which are still referenced from more than one
+     * target.
+     *
+     * A definition-dropping bug once left references pointing at ids defined
+     * nowhere. When several targets share such an id they almost certainly shared
+     * one variable, and the shared id is the strongest evidence of that. Restoring
+     * the global before each target repairs its own references keeps those targets
+     * sharing it rather than each minting a private local.
+     *
+     * An id defined on any target in the project does not qualify, even for
+     * targets that cannot see that definition: it is a stale reference to that
+     * target's local (a script once copied to other sprites), and the runtime
+     * would have given each other sprite its own local. A same-name local on any
+     * referencing target is likewise a stronger claim, judged by that target's own
+     * field name and type: it would have resolved the reference to its own local
+     * by name at execution time, so the id is left for the per-target repair. So
+     * is a same-name global, since the per-target repair remaps to it. Broadcasts
+     * are skipped because they only ever live on the stage, so every target's
+     * repair already coalesces them there.
+     *
+     * Run before `Target.reconcileVariableReferences` on whole-project load.
+     * @param {Array<Target>} targets The targets being installed.
+     */
+    restoreSharedMissingDefinitions (targets) {
+        const stage = this.getTargetForStage();
+        if (!stage) return;
+
+        const definedIds = new Set();
+        for (const target of targets) {
+            for (const varId in target.variables) {
+                if (Object.prototype.hasOwnProperty.call(target.variables, varId)) definedIds.add(varId);
+            }
+        }
+
+        // Each referring target keeps its own field name and type: two targets may
+        // display the same missing id under different stale names.
+        const referrers = Object.create(null);
+        for (const target of targets) {
+            const references = target.blocks.getAllVariableAndListReferences();
+            for (const varId in references) {
+                if (definedIds.has(varId)) continue;
+                const ref = references[varId][0];
+                // A field serialized without an id is collected under the key
+                // "undefined". Two such fields on different targets share nothing but
+                // that accident, so leave them to the per-target repair.
+                if (typeof ref.referencingField.id !== 'string') continue;
+                if (!referrers[varId]) referrers[varId] = [];
+                referrers[varId].push({
+                    target,
+                    name: ref.referencingField.value,
+                    type: ref.type
+                });
+            }
+        }
+
+        for (const varId in referrers) {
+            const refs = referrers[varId];
+            if (refs.length < 2) continue;
+            // skipStage: only a local shadows here. (For the stage itself, "local"
+            // means the globals, which the next check covers anyway.)
+            if (refs.some(({target, name, type}) => target.lookupVariableByNameAndType(name, type, true))) continue;
+            if (refs.some(({name, type}) => stage.lookupVariableByNameAndType(name, type))) continue;
+            const {name, type} = refs[0];
+            stage.createVariable(varId, name, type);
+            log.warn(
+                `Restored missing shared variable '${varId}' (name '${name}', type '${type}') as a global; ` +
+                `referenced by ${refs.map(({target}) => `'${target.getName()}'`).join(', ')}.`
+            );
+        }
     }
 
     /**

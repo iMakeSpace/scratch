@@ -10,13 +10,13 @@ exports[`Sound Editor Container should pass the correct data to the component fr
         </span>
         <input
           class=""
-          tabindex="1"
           type="text"
           value="first name"
         />
       </label>
       <div>
         <button
+          aria-label="Undo"
           disabled=""
           title="Undo"
         >
@@ -26,6 +26,7 @@ exports[`Sound Editor Container should pass the correct data to the component fr
           />
         </button>
         <button
+          aria-label="Redo"
           disabled=""
           title="Redo"
         >
@@ -37,9 +38,8 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       </div>
     </div>
     <div>
-      <div
+      <button
         class=""
-        role="button"
       >
         <img
           draggable="false"
@@ -48,10 +48,10 @@ exports[`Sound Editor Container should pass the correct data to the component fr
         <div>
           Copy
         </div>
-      </div>
-      <div
+      </button>
+      <button
         class=""
-        role="button"
+        disabled=""
       >
         <img
           draggable="false"
@@ -60,10 +60,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
         <div>
           Paste
         </div>
-      </div>
-      <div
+      </button>
+      <button
         class=""
-        role="button"
       >
         <img
           draggable="false"
@@ -72,11 +71,11 @@ exports[`Sound Editor Container should pass the correct data to the component fr
         <div>
           Copy to New
         </div>
-      </div>
+      </button>
     </div>
-    <div
+    <button
       class=""
-      role="button"
+      disabled=""
     >
       <img
         draggable="false"
@@ -85,7 +84,7 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Delete
       </div>
-    </div>
+    </button>
   </div>
   <div>
     <div>
@@ -112,6 +111,7 @@ exports[`Sound Editor Container should pass the correct data to the component fr
   >
     <div>
       <button
+        aria-label="Play"
         class=""
         title="Play"
       >
@@ -121,9 +121,8 @@ exports[`Sound Editor Container should pass the correct data to the component fr
         />
       </button>
     </div>
-    <div
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -132,10 +131,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Faster
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -144,10 +142,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Slower
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -156,10 +153,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Louder
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -168,10 +164,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Softer
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -180,10 +175,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Mute
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -192,10 +186,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Fade in
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -204,10 +197,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Fade out
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -216,10 +208,9 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Reverse
       </div>
-    </div>
-    <div
+    </button>
+    <button
       class=""
-      role="button"
     >
       <img
         draggable="false"
@@ -228,7 +219,7 @@ exports[`Sound Editor Container should pass the correct data to the component fr
       <div>
         Robot
       </div>
-    </div>
+    </button>
   </div>
 </div>
 `;

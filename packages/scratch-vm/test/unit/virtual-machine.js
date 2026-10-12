@@ -230,7 +230,7 @@ test('deleteSprite deletes a sprite when given id is associated with a known spr
     t.end();
 });
 
-// eslint-disable-next-line max-len
+// eslint-disable-next-line @stylistic/max-len
 test('deleteSprite sets editing target as null when given sprite is current editing target, and the only target in the runtime', t => {
     const vm = new VirtualMachine();
     const spr = new Sprite(null, vm.runtime);
@@ -246,7 +246,7 @@ test('deleteSprite sets editing target as null when given sprite is current edit
     t.end();
 });
 
-// eslint-disable-next-line max-len
+// eslint-disable-next-line @stylistic/max-len
 test('deleteSprite updates editingTarget when sprite being deleted is current editing target, and there is another target in the runtime', t => {
     const vm = new VirtualMachine();
     const spr1 = new Sprite(null, vm.runtime);
@@ -948,6 +948,128 @@ test('shareBlocksToTarget chooses a fresh name for a new global variable checkin
     });
 });
 
+test('shareBlocksToTarget without a source target creates a missing variable on the stage', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const spr1 = new Sprite(null, runtime);
+    const stage = spr1.createClone();
+    stage.isStage = true;
+
+    const spr2 = new Sprite(null, runtime);
+    const target = spr2.createClone();
+
+    runtime.targets = [stage, target];
+    vm.editingTarget = target;
+    vm.runtime.setEditingTarget(target);
+
+    const blocksToShare = adapter(events.mockVariableBlock);
+
+    t.equal(Object.keys(stage.variables).length, 0);
+    t.equal(Object.keys(target.variables).length, 0);
+
+    vm.shareBlocksToTarget(blocksToShare, target.id).then(() => {
+        t.equal(Object.keys(stage.variables).length, 1, 'variable created on stage');
+        const newVar = stage.variables['mock var id'];
+        t.ok(newVar, 'variable preserves the original id');
+        t.equal(newVar.name, 'a mock variable');
+        t.equal(newVar.type, Variable.SCALAR_TYPE);
+        t.equal(Object.keys(target.variables).length, 0, 'no variable on the receiving sprite');
+
+        const newBlockId = Object.keys(target.blocks._blocks)[0];
+        t.equal(target.blocks.getBlock(newBlockId).fields.VARIABLE.id, 'mock var id');
+
+        t.end();
+    });
+});
+
+test('shareBlocksToTarget without a source target creates a missing broadcast on the stage', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const spr1 = new Sprite(null, runtime);
+    const stage = spr1.createClone();
+    stage.isStage = true;
+
+    const spr2 = new Sprite(null, runtime);
+    const target = spr2.createClone();
+
+    runtime.targets = [stage, target];
+    vm.editingTarget = target;
+    vm.runtime.setEditingTarget(target);
+
+    const blocksToShare = adapter(events.mockBroadcastBlock);
+
+    t.equal(Object.keys(stage.variables).length, 0);
+
+    vm.shareBlocksToTarget(blocksToShare, target.id).then(() => {
+        t.equal(Object.keys(stage.variables).length, 1, 'broadcast created on stage');
+        const newBroadcast = stage.variables['mock broadcast message id'];
+        t.ok(newBroadcast, 'broadcast preserves the original id');
+        t.equal(newBroadcast.name, 'my message');
+        t.equal(newBroadcast.type, Variable.BROADCAST_MESSAGE_TYPE);
+
+        const menuBlockId = Object.keys(target.blocks._blocks)
+            .find(id => target.blocks.getBlock(id).opcode === 'event_broadcast_menu');
+        t.ok(menuBlockId, 'broadcast menu block exists on the target');
+        t.equal(target.blocks.getBlock(menuBlockId).fields.BROADCAST_OPTION.id, 'mock broadcast message id');
+
+        t.end();
+    });
+});
+
+test('shareBlocksToTarget without a source target remaps a variable to an existing same-name global', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const spr1 = new Sprite(null, runtime);
+    const stage = spr1.createClone();
+    stage.isStage = true;
+
+    const spr2 = new Sprite(null, runtime);
+    const target = spr2.createClone();
+
+    runtime.targets = [stage, target];
+    vm.editingTarget = target;
+    vm.runtime.setEditingTarget(target);
+
+    stage.createVariable('pre-existing global var id', 'a mock variable', Variable.SCALAR_TYPE);
+
+    const blocksToShare = adapter(events.mockVariableBlock);
+
+    vm.shareBlocksToTarget(blocksToShare, target.id).then(() => {
+        t.equal(Object.keys(stage.variables).length, 1, 'no duplicate variable created');
+        t.ok(stage.variables['pre-existing global var id'], 'existing variable preserved');
+
+        const newBlockId = Object.keys(target.blocks._blocks)[0];
+        t.equal(target.blocks.getBlock(newBlockId).fields.VARIABLE.id, 'pre-existing global var id',
+            'block field id remapped to existing variable');
+
+        t.end();
+    });
+});
+
+test('shareBlocksToTarget without a source target creates broadcasts when pasted onto the stage', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const spr1 = new Sprite(null, runtime);
+    const stage = spr1.createClone();
+    stage.isStage = true;
+
+    runtime.targets = [stage];
+    vm.editingTarget = stage;
+    vm.runtime.setEditingTarget(stage);
+
+    const blocksToShare = adapter(events.mockBroadcastBlock);
+
+    vm.shareBlocksToTarget(blocksToShare, stage.id).then(() => {
+        t.equal(Object.keys(stage.variables).length, 1, 'broadcast created on stage when stage is the target');
+        const newBroadcast = stage.variables['mock broadcast message id'];
+        t.ok(newBroadcast);
+        t.equal(newBroadcast.name, 'my message');
+        t.equal(newBroadcast.type, Variable.BROADCAST_MESSAGE_TYPE);
+
+        t.end();
+    });
+});
+
 test('shareBlocksToTarget loads extensions that have not yet been loaded', t => {
     const vm = new VirtualMachine();
     const runtime = vm.runtime;
@@ -973,6 +1095,407 @@ test('shareBlocksToTarget loads extensions that have not yet been loaded', t => 
     vm.shareBlocksToTarget(fakeBlocks, stage.id).then(() => {
         // Verify that only the not-loaded extension gets loaded
         t.same(loadedIds, ['notloaded']);
+        t.end();
+    });
+});
+
+test('installTargets creates a stage broadcast for a sprite import that references one', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+
+    const spr1 = new Sprite(null, runtime);
+    const stage = spr1.createClone();
+    stage.isStage = true;
+    runtime.targets = [stage];
+
+    const importedSprite = new Sprite(null, runtime);
+    const importedTarget = importedSprite.createClone();
+    importedTarget.isStage = false;
+    importedTarget.getName = () => 'Imported';
+    adapter(events.mockBroadcastBlock).forEach(block => importedTarget.blocks.createBlock(block));
+
+    t.equal(Object.keys(stage.variables).length, 0);
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([importedTarget], extensions, false).then(() => {
+        t.equal(Object.keys(stage.variables).length, 1, 'broadcast created on stage during sprite import');
+        const newBroadcast = stage.variables['mock broadcast message id'];
+        t.ok(newBroadcast);
+        t.equal(newBroadcast.name, 'my message');
+        t.equal(newBroadcast.type, Variable.BROADCAST_MESSAGE_TYPE);
+
+        t.end();
+    });
+});
+
+test('installTargets repairs dangling variable references on whole-project load', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+
+    const stageSprite = new Sprite(null, runtime);
+    const stage = stageSprite.createClone();
+    stage.isStage = true;
+    stage.getName = () => 'Stage';
+
+    const spriteSprite = new Sprite(null, runtime);
+    const sprite = spriteSprite.createClone();
+    sprite.isStage = false;
+    sprite.getName = () => 'Sprite';
+    // Block with a variable field referencing an id that's not defined anywhere — the
+    // shape produced when a project saved during the missing-definitions bug is loaded.
+    sprite.blocks.createBlock(adapter(events.mockVariableBlock)[0]);
+    adapter(events.mockBroadcastBlock).forEach(block => sprite.blocks.createBlock(block));
+
+    t.equal(Object.keys(stage.variables).length, 0);
+    t.equal(Object.keys(sprite.variables).length, 0);
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, sprite], extensions, true).then(() => {
+        // Match the runtime's lookupOrCreateVariable: an undefined variable is created on
+        // the sprite that references it, while broadcasts always live on the stage.
+        t.equal(Object.keys(stage.variables).length, 1, 'broadcast created on stage');
+        t.ok(stage.variables['mock broadcast message id'], 'dangling broadcast reference reconciled');
+        t.equal(Object.keys(sprite.variables).length, 1, 'variable created on the sprite');
+        t.ok(sprite.variables['mock var id'], 'dangling variable reference reconciled');
+        t.equal(sprite.variables['mock var id'].name, 'a mock variable');
+
+        t.end();
+    });
+});
+
+test('installTargets resolves a dangling reference to the sprite\'s own same-name local on whole-project load', t => {
+    // Regression for scratchfoundation/scratch-editor#601: two sprites each own a local
+    // "i", the stage owns a global "total", and one sprite's "for each" block carries a
+    // stale id with the name "i". Loading must resolve that field to the sprite's own "i"
+    // and leave every other variable, on every target, untouched.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+
+    const stageSprite = new Sprite(null, runtime);
+    const stage = stageSprite.createClone();
+    stage.isStage = true;
+    stage.getName = () => 'Stage';
+    stage.createVariable('global total id', 'total', Variable.SCALAR_TYPE);
+
+    const makeSprite = name => {
+        const sprite = new Sprite(null, runtime);
+        const target = sprite.createClone();
+        target.isStage = false;
+        target.getName = () => name;
+        return target;
+    };
+    const makeVariableBlock = (blockId, opcode, fieldId, fieldValue) => ({
+        id: blockId,
+        opcode,
+        inputs: {},
+        fields: {
+            VARIABLE: {
+                name: 'VARIABLE',
+                id: fieldId,
+                value: fieldValue,
+                variableType: Variable.SCALAR_TYPE
+            }
+        },
+        next: null,
+        topLevel: true,
+        parent: null,
+        shadow: false,
+        x: 0,
+        y: 0
+    });
+
+    const setup = makeSprite('Setup');
+    setup.createVariable('setup i id', 'i', Variable.SCALAR_TYPE);
+    setup.blocks.createBlock(makeVariableBlock('setup loop', 'control_for_each', 'setup i id', 'i'));
+
+    const bsp = makeSprite('BSP');
+    bsp.createVariable('bsp i id', 'i', Variable.SCALAR_TYPE);
+    bsp.blocks.createBlock(makeVariableBlock('bsp loop', 'control_for_each', 'stale i id', 'i'));
+    bsp.blocks.createBlock(makeVariableBlock('bsp body', 'data_variable', 'bsp i id', 'i'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, setup, bsp], extensions, true).then(() => {
+        t.same(Object.keys(stage.variables), ['global total id'], 'no global created');
+        t.equal(stage.variables['global total id'].name, 'total', 'global not renamed');
+        t.same(Object.keys(setup.variables), ['setup i id'], 'other sprite untouched');
+        t.equal(setup.variables['setup i id'].name, 'i', 'other sprite local not renamed');
+        t.equal(setup.blocks.getBlock('setup loop').fields.VARIABLE.id, 'setup i id');
+        t.same(Object.keys(bsp.variables), ['bsp i id'], 'no new local on the affected sprite');
+        t.equal(bsp.variables['bsp i id'].name, 'i', 'affected sprite local not renamed');
+
+        const loopField = bsp.blocks.getBlock('bsp loop').fields.VARIABLE;
+        const bodyField = bsp.blocks.getBlock('bsp body').fields.VARIABLE;
+        t.equal(loopField.id, 'bsp i id', 'stale loop reference resolved to the sprite\'s own local');
+        t.equal(loopField.value, 'i');
+        t.equal(bodyField.id, 'bsp i id');
+        t.equal(bodyField.value, 'i');
+
+        t.end();
+    });
+});
+
+// Helpers for the shared-missing-definition tests below.
+const makeSpriteTarget = (runtime, name) => {
+    const sprite = new Sprite(null, runtime);
+    const target = sprite.createClone();
+    target.isStage = false;
+    target.getName = () => name;
+    return target;
+};
+const makeStageTarget = runtime => {
+    const sprite = new Sprite(null, runtime);
+    const stage = sprite.createClone();
+    stage.isStage = true;
+    stage.getName = () => 'Stage';
+    return stage;
+};
+const makeDanglingVariableBlock = (blockId, fieldId, fieldValue) => ({
+    id: blockId,
+    opcode: 'data_variable',
+    inputs: {},
+    fields: {
+        VARIABLE: {
+            name: 'VARIABLE',
+            id: fieldId,
+            value: fieldValue,
+            variableType: Variable.SCALAR_TYPE
+        }
+    },
+    next: null,
+    topLevel: true,
+    parent: null,
+    shadow: false,
+    x: 0,
+    y: 0
+});
+
+test('installTargets restores a missing global shared by several sprites on whole-project load', t => {
+    // The definition-dropping bug left a global's references intact on every sprite
+    // that used it. They shared one variable, so restore one global rather than
+    // giving each sprite a private local.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    const spriteA = makeSpriteTarget(runtime, 'A');
+    const spriteB = makeSpriteTarget(runtime, 'B');
+    spriteA.blocks.createBlock(makeDanglingVariableBlock('block A', 'lost global id', 'score'));
+    spriteB.blocks.createBlock(makeDanglingVariableBlock('block B', 'lost global id', 'score'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, spriteA, spriteB], extensions, true).then(() => {
+        t.same(Object.keys(stage.variables), ['lost global id'], 'one global restored under the shared id');
+        t.equal(stage.variables['lost global id'].name, 'score');
+        t.equal(Object.keys(spriteA.variables).length, 0, 'no local on A');
+        t.equal(Object.keys(spriteB.variables).length, 0, 'no local on B');
+        t.equal(spriteA.blocks.getBlock('block A').fields.VARIABLE.id, 'lost global id');
+        t.equal(spriteB.blocks.getBlock('block B').fields.VARIABLE.id, 'lost global id');
+        t.end();
+    });
+});
+
+test('installTargets leaves a shared missing id to per-sprite repair when a sprite owns a same-name local', t => {
+    // A same-name local on one referencing sprite is the #601 shape: that sprite
+    // would have resolved by name to its own local, so no global is restored. The
+    // other sprite falls back to creating its own local, as the runtime would have.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    const spriteA = makeSpriteTarget(runtime, 'A');
+    const spriteB = makeSpriteTarget(runtime, 'B');
+    spriteA.createVariable('a score id', 'score', Variable.SCALAR_TYPE);
+    spriteA.blocks.createBlock(makeDanglingVariableBlock('block A', 'stale id', 'score'));
+    spriteB.blocks.createBlock(makeDanglingVariableBlock('block B', 'stale id', 'score'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, spriteA, spriteB], extensions, true).then(() => {
+        t.equal(Object.keys(stage.variables).length, 0, 'no global restored');
+        t.same(Object.keys(spriteA.variables), ['a score id'], 'A keeps only its own local');
+        t.equal(spriteA.blocks.getBlock('block A').fields.VARIABLE.id, 'a score id', 'A resolved to its local');
+        t.same(Object.keys(spriteB.variables), ['stale id'], 'B created its own local');
+        t.equal(spriteB.variables['stale id'].name, 'score');
+        t.end();
+    });
+});
+
+test('installTargets remaps a shared missing id to an existing same-name global', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    stage.createVariable('existing score id', 'score', Variable.SCALAR_TYPE);
+    const spriteA = makeSpriteTarget(runtime, 'A');
+    const spriteB = makeSpriteTarget(runtime, 'B');
+    spriteA.blocks.createBlock(makeDanglingVariableBlock('block A', 'lost global id', 'score'));
+    spriteB.blocks.createBlock(makeDanglingVariableBlock('block B', 'lost global id', 'score'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, spriteA, spriteB], extensions, true).then(() => {
+        t.same(Object.keys(stage.variables), ['existing score id'], 'no second global');
+        t.equal(spriteA.blocks.getBlock('block A').fields.VARIABLE.id, 'existing score id');
+        t.equal(spriteB.blocks.getBlock('block B').fields.VARIABLE.id, 'existing score id');
+        t.equal(Object.keys(spriteA.variables).length + Object.keys(spriteB.variables).length, 0, 'no locals');
+        t.end();
+    });
+});
+
+test('installTargets restores a missing global shared by the stage and a sprite', t => {
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    const sprite = makeSpriteTarget(runtime, 'A');
+    stage.blocks.createBlock(makeDanglingVariableBlock('stage block', 'lost global id', 'score'));
+    sprite.blocks.createBlock(makeDanglingVariableBlock('sprite block', 'lost global id', 'score'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, sprite], extensions, true).then(() => {
+        t.same(Object.keys(stage.variables), ['lost global id'], 'global restored');
+        t.equal(Object.keys(sprite.variables).length, 0, 'no local on the sprite');
+        t.equal(sprite.blocks.getBlock('sprite block').fields.VARIABLE.id, 'lost global id');
+        t.end();
+    });
+});
+
+test('installTargets on sprite import does not run the shared-definition restore', t => {
+    // Import reconciles only the imported sprite; there is nothing to share with.
+    // Its leftover reference still becomes a global via fixUpVariableReferences.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    runtime.targets = [stage];
+    const imported = makeSpriteTarget(runtime, 'Imported');
+    imported.blocks.createBlock(makeDanglingVariableBlock('a block', 'lost global id', 'score'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([imported], extensions, false).then(() => {
+        t.same(Object.keys(stage.variables), ['lost global id'], 'global created by the import path');
+        t.equal(Object.keys(imported.variables).length, 0, 'no local on the imported sprite');
+        t.end();
+    });
+});
+
+test('installTargets does not restore a shared id that another sprite defines locally', t => {
+    // Sprite A owns the id as a local; B and C carry stale references to it from a
+    // script copied out of A long ago. That is not a lost global. The runtime gave
+    // B and C their own locals on execution, so the per-sprite repair does the same.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    const spriteA = makeSpriteTarget(runtime, 'A');
+    const spriteB = makeSpriteTarget(runtime, 'B');
+    const spriteC = makeSpriteTarget(runtime, 'C');
+    spriteA.createVariable('a local id', 'i', Variable.SCALAR_TYPE);
+    spriteA.blocks.createBlock(makeDanglingVariableBlock('block A', 'a local id', 'i'));
+    spriteB.blocks.createBlock(makeDanglingVariableBlock('block B', 'a local id', 'i'));
+    spriteC.blocks.createBlock(makeDanglingVariableBlock('block C', 'a local id', 'i'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, spriteA, spriteB, spriteC], extensions, true).then(() => {
+        t.equal(Object.keys(stage.variables).length, 0, 'no global created');
+        t.same(Object.keys(spriteA.variables), ['a local id'], 'A untouched');
+        t.same(Object.keys(spriteB.variables), ['a local id'], 'B has its own local under the id');
+        t.same(Object.keys(spriteC.variables), ['a local id'], 'C has its own local under the id');
+        t.not(spriteB.variables['a local id'], spriteA.variables['a local id'], 'B\'s local is distinct from A\'s');
+        t.not(spriteC.variables['a local id'], spriteB.variables['a local id'], 'C\'s local is distinct from B\'s');
+        t.end();
+    });
+});
+
+test('installTargets does not merge id-less references from different sprites', t => {
+    // A field serialized as a one-element array has no id, and the reference
+    // collector files every such field under the key "undefined". Two sprites with
+    // id-less fields share nothing, so each keeps the per-sprite behavior.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    const spriteA = makeSpriteTarget(runtime, 'A');
+    const spriteB = makeSpriteTarget(runtime, 'B');
+    spriteA.blocks.createBlock(makeDanglingVariableBlock('block A', undefined, 'score'));
+    spriteB.blocks.createBlock(makeDanglingVariableBlock('block B', undefined, 'score'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, spriteA, spriteB], extensions, true).then(() => {
+        t.equal(Object.keys(stage.variables).length, 0, 'no global created');
+        const aVars = Object.values(spriteA.variables);
+        const bVars = Object.values(spriteB.variables);
+        t.equal(aVars.length, 1, 'A has its own variable');
+        t.equal(bVars.length, 1, 'B has its own variable');
+        t.equal(aVars[0].name, 'score');
+        t.equal(bVars[0].name, 'score');
+        t.not(aVars[0], bVars[0], 'the two are distinct');
+        t.end();
+    });
+});
+
+test('installTargets judges a shadowing local by each referring sprite\'s own field name', t => {
+    // Two sprites reference the same missing id under different stale names, and
+    // one of them owns a local matching its own name. That sprite would have
+    // resolved to its local by name, so no global is restored.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+    const stage = makeStageTarget(runtime);
+    const spriteA = makeSpriteTarget(runtime, 'A');
+    const spriteB = makeSpriteTarget(runtime, 'B');
+    spriteA.blocks.createBlock(makeDanglingVariableBlock('block A', 'missing id', 'score'));
+    spriteB.createVariable('b points id', 'points', Variable.SCALAR_TYPE);
+    spriteB.blocks.createBlock(makeDanglingVariableBlock('block B', 'missing id', 'points'));
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, spriteA, spriteB], extensions, true).then(() => {
+        t.equal(Object.keys(stage.variables).length, 0, 'no global restored');
+        t.equal(spriteB.blocks.getBlock('block B').fields.VARIABLE.id, 'b points id', 'B resolved to its local');
+        t.same(Object.keys(spriteB.variables), ['b points id'], 'B has only its own local');
+        t.same(Object.keys(spriteA.variables), ['missing id'], 'A created its own local');
+        t.equal(spriteA.variables['missing id'].name, 'score');
+        t.end();
+    });
+});
+
+test('installTargets does NOT rename clean local-vs-global name collisions on whole-project load', t => {
+    // Regression guard: a project saved with a sprite-local variable that name-collides with
+    // a stage global must load unchanged. The fixUpVariableReferences rename behavior is
+    // for sprite import; project load uses the repair-only helper.
+    const vm = new VirtualMachine();
+    const runtime = vm.runtime;
+
+    const stageSprite = new Sprite(null, runtime);
+    const stage = stageSprite.createClone();
+    stage.isStage = true;
+    stage.getName = () => 'Stage';
+    stage.createVariable('global score id', 'score', Variable.SCALAR_TYPE);
+
+    const spriteSprite = new Sprite(null, runtime);
+    const sprite = spriteSprite.createClone();
+    sprite.isStage = false;
+    sprite.getName = () => 'Sprite';
+    sprite.createVariable('local score id', 'score', Variable.SCALAR_TYPE);
+    // Block referencing the sprite-local variable with the same name as the global.
+    sprite.blocks.createBlock({
+        id: 'a block',
+        opcode: 'data_variable',
+        inputs: {},
+        fields: {
+            VARIABLE: {
+                name: 'VARIABLE',
+                id: 'local score id',
+                value: 'score',
+                variableType: Variable.SCALAR_TYPE
+            }
+        },
+        next: null,
+        topLevel: true,
+        parent: null,
+        shadow: false,
+        x: 0,
+        y: 0
+    });
+
+    const extensions = {extensionIDs: new Set(), extensionURLs: new Map()};
+    vm.installTargets([stage, sprite], extensions, true).then(() => {
+        t.equal(sprite.variables['local score id'].name, 'score',
+            'sprite local variable name unchanged after whole-project load');
+        t.equal(sprite.blocks.getBlock('a block').fields.VARIABLE.id, 'local score id',
+            'block field id unchanged');
+        t.equal(Object.keys(stage.variables).length, 1, 'no new stage variables created');
+
         t.end();
     });
 });

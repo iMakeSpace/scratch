@@ -6,20 +6,23 @@ import {EditorState} from './lib/editor-state';
 import {ReactComponentLike} from 'prop-types';
 import {compose} from 'redux';
 
-export {EditorState, EditorStateParams} from './lib/editor-state';
-export {AccountMenuOptions} from './lib/account-menu-options';
+export {EditorState, type EditorStateParams} from './lib/editor-state';
+export {type AccountMenuOptions} from './lib/account-menu-options';
 
 export {setAppElement} from 'react-modal';
 
 export * from './gui-config';
 export * from './exported-reducers';
 
-export * from 'scratch-storage';
+export * from '@scratch/scratch-storage';
+
+export * from './lib/legacy-backpack-storage';
+export {default as LegacyCloudProvider} from './lib/cloud-provider';
 
 export {default as buildDefaultProject} from './lib/default-project';
 
 // TODO: Better typing once ScratchGUI has types
- 
+
 export type GUIProps = any; // ComponentPropsWithoutRef<typeof ScratchGUI>;
 
 export type HigherOrderComponent = (component: ReactComponentLike) => ReactComponentLike;

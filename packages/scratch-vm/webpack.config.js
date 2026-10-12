@@ -88,7 +88,7 @@ const playgroundBuilder = webBuilder
         }
     })
     .addModuleRule({
-        test: require.resolve('scratch-blocks/dist/vertical.js'),
+        test: require.resolve('scratch-blocks'),
         loader: 'expose-loader',
         options: {
             exposes: 'Blockly'
@@ -102,7 +102,7 @@ const playgroundBuilder = webBuilder
         }
     })
     .addModuleRule({
-        test: require.resolve('scratch-storage'),
+        test: require.resolve('@scratch/scratch-storage'),
         loader: 'expose-loader',
         options: {
             exposes: 'ScratchStorage ScratchStorage'
@@ -123,7 +123,7 @@ const playgroundBuilder = webBuilder
                     to: 'media'
                 },
                 {
-                    from: '../../node_modules/scratch-storage/dist/web'
+                    from: '../../node_modules/@scratch/scratch-storage/dist/web'
                 },
                 {
                     from: '../../node_modules/@scratch/scratch-render/dist/web'
@@ -139,7 +139,7 @@ const playgroundBuilder = webBuilder
     );
 
 module.exports = [
+    playgroundBuilder.get(), // webpack-dev-server only looks at the first configuration
     nodeBuilder.get(),
-    webBuilder.get(),
-    playgroundBuilder.get()
+    webBuilder.get()
 ];

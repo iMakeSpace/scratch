@@ -4,6 +4,7 @@ import {compose} from 'redux';
 import {connect} from 'react-redux';
 import ReactModal from 'react-modal';
 import VM from '@scratch/scratch-vm';
+import {prewarmPaperSandbox} from '@scratch/scratch-paint';
 import {injectIntl} from 'react-intl';
 import intlShape from '../lib/intlShape.js';
 
@@ -28,6 +29,7 @@ import {
 } from '../reducers/modals';
 
 import {setPlatform} from '../reducers/platform';
+import {setDynamicAssets} from '../reducers/dynamic-assets';
 
 import FontLoaderHOC from '../lib/font-loader-hoc.jsx';
 import LocalizationHOC from '../lib/localization-hoc.jsx';
@@ -45,6 +47,11 @@ import {PLATFORM} from '../lib/platform.js';
 import GUIComponent from '../components/gui/gui.jsx';
 import {GUIStoragePropType} from '../gui-config';
 import {AccountMenuOptionsPropTypes} from '../lib/account-menu-options';
+import {
+    costumeShape,
+    soundShape,
+    spriteShape
+} from '../lib/assets-prop-types.js';
 
 class GUI extends React.Component {
     componentDidMount () {
@@ -54,8 +61,18 @@ class GUI extends React.Component {
         if (this.props.platform) {
             this.props.setPlatform(this.props.platform);
         }
+        if (this.props.dynamicAssets) {
+            this.props.onUpdateDynamicAssets(this.props.dynamicAssets);
+        }
+        this.maybePrewarmPaperSandbox();
     }
     componentDidUpdate (prevProps) {
+        if (this.props.dynamicAssets !== prevProps.dynamicAssets) {
+            this.props.onUpdateDynamicAssets(this.props.dynamicAssets);
+        }
+        // A session may start player-only and later enter the editor; warm the
+        // paint sandbox on that transition too.
+        this.maybePrewarmPaperSandbox();
         if (this.props.projectId !== prevProps.projectId) {
             if (this.props.projectId !== null) {
                 this.props.onUpdateProjectId(this.props.projectId);
@@ -71,6 +88,20 @@ class GUI extends React.Component {
         if (this.props.shouldStopProject && !prevProps.shouldStopProject) {
             this.props.vm.stopAll();
         }
+    }
+    // Once per editor session, build and warm the Paper.js sandbox during idle
+    // time so the first costume import in the paint editor is not slowed by the
+    // iframe creation and Paper.js evaluation cold-start. Skipped in player-only
+    // sessions, which never open the paint editor.
+    maybePrewarmPaperSandbox () {
+        if (this._paperSandboxWarmed || this.props.isPlayerOnly) return;
+        this._paperSandboxWarmed = true;
+        // Some browsers (e.g. Safari) don't support requestIdleCallback, so fall back to setTimeout.
+        const scheduleIdle = window.requestIdleCallback ?
+            window.requestIdleCallback.bind(window) :
+            callback => setTimeout(() => callback(), 0);
+        
+        scheduleIdle(() => prewarmPaperSandbox());
     }
     render () {
         if (this.props.isError) {
@@ -116,24 +147,35 @@ GUI.propTypes = {
     assetHost: PropTypes.string,
     children: PropTypes.node,
     cloudHost: PropTypes.string,
+    dynamicAssets: PropTypes.shape({
+        backdrops: PropTypes.arrayOf(costumeShape),
+        costumes: PropTypes.arrayOf(costumeShape),
+        sounds: PropTypes.arrayOf(soundShape),
+        sprites: PropTypes.arrayOf(spriteShape)
+    }),
     error: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
     fetchingProject: PropTypes.bool,
     intl: intlShape,
     isError: PropTypes.bool,
     isLoading: PropTypes.bool,
+    isPlayerOnly: PropTypes.bool,
     isShowingProject: PropTypes.bool,
     isTotallyNormal: PropTypes.bool,
     loadingStateVisible: PropTypes.bool,
     manuallySaveThumbnails: PropTypes.bool,
+    onSetManualThumbnail: PropTypes.func,
+    onSetManualThumbnailButtonClick: PropTypes.func,
     onProjectLoaded: PropTypes.func,
     onSeeCommunity: PropTypes.func,
     onStorageInit: PropTypes.func,
     onUpdateProjectId: PropTypes.func,
+    onUpdateDynamicAssets: PropTypes.func,
     onVmInit: PropTypes.func,
     platform: PropTypes.oneOf(Object.keys(PLATFORM)),
     setPlatform: PropTypes.func.isRequired,
     /**
-     * Whether to highlight new editor features in the UI.
+     * Indicates whether we should highlight new editor features in the UI.
+     * Used only when there are new features to highlight.
      */
     showNewFeatureCallouts: PropTypes.bool,
     projectHost: PropTypes.string,
@@ -141,6 +183,7 @@ GUI.propTypes = {
     shouldStopProject: PropTypes.bool,
     telemetryModalVisible: PropTypes.bool,
     username: PropTypes.string,
+    avatarBadge: PropTypes.number,
     userOwnsProject: PropTypes.bool,
     // TODO: Is this unused?
     hideTutorialProjects: PropTypes.bool,
@@ -191,6 +234,7 @@ const mapStateToProps = (state, ownProps) => {
 const mapDispatchToProps = dispatch => ({
     onExtensionButtonClick: () => dispatch(openExtensionLibrary()),
     onActivateTab: tab => dispatch(activateTab(tab)),
+    onUpdateDynamicAssets: dynamicAssets => dispatch(setDynamicAssets(dynamicAssets)),
     onActivateCostumesTab: () => dispatch(activateTab(COSTUMES_TAB_INDEX)),
     onActivateSoundsTab: () => dispatch(activateTab(SOUNDS_TAB_INDEX)),
     setPlatform: platform => dispatch(setPlatform(platform)),
